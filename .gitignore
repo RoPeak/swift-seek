@@ -1,0 +1,23 @@
+# Build artifacts
+bin/
+obj/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs
+*.log
+
+# Visual Studio Code settings
+.vscode/
+
+# Other
+*.swp
+*.tmp
+*.bak
+*.ncb
+*.opendb
+*.VC.db

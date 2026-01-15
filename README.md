@@ -1,100 +1,41 @@
 # SwiftSeek
 
-SwiftSeek is a fast Windows file search application designed for power users and developers. It provides instant indexed name/path search and powerful content search across common document and code formats, with clear progress, cancellation, and rich filtering.
+SwiftSeek is a command-line tool for searching files and directories on Windows. It supports searching by file names, directory names, and file contents with various filters and modes.
 
-## Features
+## How to Run
 
-- **Instant Filename/Path Search**: Quickly locate files and folders by name or path.
-- **Content Search**: Search inside files with support for exact phrases, case sensitivity, regex, and fuzzy matching.
-- **Advanced Filters**: Filter results by file type, size, creation/modification date, and directory patterns.
-- **Modern UI**: Clean and responsive WinUI 3 interface with real-time progress and status updates.
-- **Indexing**: Efficiently index files and monitor changes with SQLite and Lucene.NET.
-- **Extensibility**: Modular architecture for future enhancements.
-
-## Supported File Types
-
-- Plain text files: `.txt`, `.md`, `.json`, `.xml`, etc.
-- Source code files: `.cs`, `.py`, `.java`, `.cpp`, etc.
-- Documents: `.docx`, `.pdf` (best-effort extraction).
-
-## Architecture Overview
-
-SwiftSeek is built with a modular architecture:
-
-- **SwiftSeek.App**: WinUI 3 application for the user interface.
-- **SwiftSeek.Core**: Search orchestration, query parsing, and filter evaluation.
-- **SwiftSeek.Indexing**: File system crawling, indexing pipelines, and text extraction.
-- **SwiftSeek.Data**: SQLite schema, migrations, and repository classes.
-- **SwiftSeek.Tests**: Unit tests for core logic.
-
-## How Indexing Works
-
-1. **Initial Scan**: Recursively scans directories and indexes file metadata in SQLite.
-2. **Content Indexing**: Extracts text from supported file types and indexes it in Lucene.NET.
-3. **Real-Time Updates**: Monitors file system changes and updates the index incrementally.
-
-## How Content Search Works
-
-- **Lucene.NET**: Provides fast full-text search with support for advanced queries.
-- **Regex Mode**: Uses `ripgrep` for live regex-based content scanning.
-
-## How to Run Locally
-
-1. Clone the repository:
-   ```
-   git clone https://github.com/RoPeak/swift-seek.git
-   ```
-2. Navigate to the project directory:
-   ```
-   cd SwiftSeek
-   ```
-3. Restore dependencies:
-   ```
-   dotnet restore
-   ```
-4. Build the solution:
+1. Ensure you have .NET 8 installed.
+2. Build the project using the .NET CLI:
    ```
    dotnet build
    ```
-5. Run the application:
+3. Run the tool:
    ```
-   dotnet run --project SwiftSeek.App
+   swiftseek <search-term> [options]
    ```
 
-## Configuration Options
+## Supported Arguments
 
-- **Exclusions**: Default exclusions include `.git`, `node_modules`, `bin`, `obj`, and `AppData`.
-- **File Size Limit**: Configurable maximum file size for content indexing.
-- **Scopes**: Define directories or drives to include in the search.
+- `<search-term>`: The term to search for.
+- `--root <directory>`: Root directory to start the search (default: current directory).
+- `--content`: Search file contents.
+- `--regex`: Use regular expressions for searching.
+- `--case-sensitive`: Perform case-sensitive search.
+- `--ext-include <exts>`: Comma-separated list of extensions to include.
+- `--ext-exclude <exts>`: Comma-separated list of extensions to exclude.
+- `--min-size <bytes>`: Minimum file size in bytes.
+- `--max-size <bytes>`: Maximum file size in bytes (default: 25 MB).
+
+## Example Usage
+
+```sh
+swiftseek "error code 503" --root "C:\Projects" --content --regex --ext-include ".log,.txt"
+```
 
 ## Known Limitations
 
-- Limited support for legacy Word documents (`.doc`).
-- PDF text extraction is best-effort and may not handle all PDFs accurately.
-
-## Future Improvements
-
-- Add support for NTFS USN journal-based indexing.
-- Improve PDF and legacy document extraction.
-- Enhance fuzzy matching algorithms.
-
-## Privacy Statement
-
-SwiftSeek operates entirely locally on your machine. No data is sent to external servers, ensuring complete privacy.
-
-## Manual Test Cases
-
-1. Add a directory to the search scope and verify that files are indexed.
-2. Search for a file by name and confirm instant results.
-3. Perform a content search for a phrase in a text file.
-4. Test regex search mode with a pattern.
-5. Verify that excluded directories (e.g., `node_modules`) are not indexed.
-6. Add a large file and confirm it is skipped if it exceeds the size limit.
-7. Modify a file and verify that the index updates in real-time.
-8. Delete a file and confirm it is removed from the index.
-9. Pause and resume indexing and verify behaviour.
-10. Test the application on both Windows 10 and Windows 11.
-
----
-
-SwiftSeek is an open-source project. Contributions are welcome!
+- Only plain text files are supported for content search.
+- Files larger than 25 MB are skipped by default.
+- Binary files are skipped using a simple heuristic (null byte detection).
+- Access-denied files are skipped.
+- Regular expressions must be valid according to .NET's `System.Text.RegularExpressions`.
