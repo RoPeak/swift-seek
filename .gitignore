@@ -22,3 +22,4 @@ obj/
 *.opendb
 *.VC.db
 swiftseek.db
+.swiftseek/

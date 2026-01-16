@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.IO;
+using SwiftSeek.Lucene;
 
 namespace SwiftSeek
 {
@@ -18,6 +19,12 @@ namespace SwiftSeek
 
             if (args[0] == "index")
             {
+                if (args.Length > 1 && args[1] == "content")
+                {
+                    await RunContentIndexCommandAsync(args);
+                    return;
+                }
+
                 var indexer = new Indexer("swiftseek.db");
                 var cts = new CancellationTokenSource();
                 Console.CancelKeyPress += (sender, eventArgs) =>
@@ -74,8 +81,45 @@ namespace SwiftSeek
 
             try
             {
-                var searcher = new Searcher(options);
-                await searcher.SearchAsync(cancellationTokenSource);
+                var contentIndexPath = options.SearchContent
+                    ? ContentIndexPaths.ResolveIndexPath(options.RootDirectory, options.ContentIndexPath)
+                    : null;
+
+                if (options.SearchContent && options.ContentSearchMode != ContentSearchMode.Scan)
+                {
+                    if (options.UseRegex)
+                    {
+                        if (options.ContentSearchMode == ContentSearchMode.Index)
+                        {
+                            Console.WriteLine("Regex search is not available when using the content index.");
+                            return;
+                        }
+
+                        Console.WriteLine("Regex search requested. Falling back to scan mode.");
+                        options.ContentSearchMode = ContentSearchMode.Scan;
+                    }
+                    else if (!ContentIndexPaths.IndexExists(contentIndexPath))
+                    {
+                        if (options.ContentSearchMode == ContentSearchMode.Index)
+                        {
+                            Console.WriteLine($"No content index found at '{contentIndexPath}'.");
+                            return;
+                        }
+
+                        Console.WriteLine("No content index found. Falling back to scan mode.");
+                        options.ContentSearchMode = ContentSearchMode.Scan;
+                    }
+                }
+
+                if (options.SearchContent && options.ContentSearchMode != ContentSearchMode.Scan)
+                {
+                    await RunContentSearchAsync(options, contentIndexPath);
+                }
+                else
+                {
+                    var searcher = new Searcher(options);
+                    await searcher.SearchAsync(cancellationTokenSource);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -88,6 +132,88 @@ namespace SwiftSeek
             }
         }
 
+        static async Task RunContentIndexCommandAsync(string[] args)
+        {
+            var rootDirectory = ".";
+            string indexOverride = null;
+            var rebuild = false;
+
+            for (int i = 2; i < args.Length; i++)
+            {
+                switch (args[i])
+                {
+                    case "--root":
+                        rootDirectory = args[++i];
+                        break;
+                    case "--content-index":
+                        indexOverride = args[++i];
+                        break;
+                    case "--rebuild":
+                        rebuild = true;
+                        break;
+                }
+            }
+
+            if (!Directory.Exists(rootDirectory))
+            {
+                Console.WriteLine($"Error: The specified root directory '{rootDirectory}' does not exist.");
+                return;
+            }
+
+            var cts = new CancellationTokenSource();
+            Console.CancelKeyPress += (sender, eventArgs) =>
+            {
+                eventArgs.Cancel = true;
+                cts.Cancel();
+            };
+
+            var indexPath = ContentIndexPaths.ResolveIndexPath(rootDirectory, indexOverride);
+            var indexer = new ContentIndexer(indexPath);
+            var options = new ContentIndexingOptions();
+
+            Console.WriteLine($"Indexing content under '{rootDirectory}'...");
+            Console.WriteLine($"Content index location: {indexPath}");
+
+            var stats = await indexer.IndexDirectoryAsync(rootDirectory, rebuild, options, cts.Token);
+            Console.WriteLine("Content indexing complete.");
+            Console.WriteLine($"Files indexed: {stats.FilesIndexed}");
+            Console.WriteLine($"Files unchanged: {stats.FilesUnchanged}");
+            Console.WriteLine($"Files skipped: {stats.FilesSkipped}");
+        }
+
+        static Task RunContentSearchAsync(SearchOptions options, string indexPath)
+        {
+            Console.WriteLine($"Searching content index: {indexPath}");
+
+            var searcher = new ContentSearcher(indexPath);
+            var query = new ContentSearchQuery
+            {
+                QueryText = options.SearchTerm,
+                CaseSensitive = options.CaseSensitive,
+                FuzzySearch = options.FuzzySearch,
+                ExactPhrase = options.ExactPhrase,
+                MaxResults = 20
+            };
+
+            var results = searcher.Search(query);
+            foreach (var result in results)
+            {
+                Console.WriteLine(result.Path);
+                if (!string.IsNullOrWhiteSpace(result.Snippet))
+                {
+                    Console.WriteLine(result.Snippet);
+                }
+
+                if (options.Verbose)
+                {
+                    Console.WriteLine($"[VERBOSE] Score: {result.Score:F2}");
+                }
+            }
+
+            Console.WriteLine($"Matches found: {results.Count}");
+            return Task.CompletedTask;
+        }
+
         static void PrintUsage()
         {
             Console.WriteLine("Usage: swiftseek <search-term> [options]");
@@ -96,11 +222,18 @@ namespace SwiftSeek
             Console.WriteLine("  --content                 Search file contents");
             Console.WriteLine("  --regex                   Use regular expressions for searching");
             Console.WriteLine("  --case-sensitive          Perform case-sensitive search");
+            Console.WriteLine("  --phrase                  Require an exact phrase match (content search)");
+            Console.WriteLine("  --fuzzy                   Enable fuzzy matching (content index only)");
+            Console.WriteLine("  --content-mode <mode>     Content search mode: auto, index, scan");
+            Console.WriteLine("  --content-index <path>    Override the default content index location");
             Console.WriteLine("  --ext-include <exts>      Comma-separated list of extensions to include");
             Console.WriteLine("  --ext-exclude <exts>      Comma-separated list of extensions to exclude");
             Console.WriteLine("  --min-size <bytes>        Minimum file size in bytes");
             Console.WriteLine("  --max-size <bytes>        Maximum file size in bytes (default: 25 MB)");
             Console.WriteLine("  --verbose                 Enable verbose output");
+            Console.WriteLine();
+            Console.WriteLine("Content indexing:");
+            Console.WriteLine("  swiftseek index content --root <directory> [--rebuild] [--content-index <path>]");
         }
 
         static SearchOptions ParseArguments(string[] args)
@@ -127,6 +260,18 @@ namespace SwiftSeek
                         case "--case-sensitive":
                             options.CaseSensitive = true;
                             break;
+                        case "--phrase":
+                            options.ExactPhrase = true;
+                            break;
+                        case "--fuzzy":
+                            options.FuzzySearch = true;
+                            break;
+                        case "--content-mode":
+                            options.ContentSearchMode = ParseContentMode(args[++i]);
+                            break;
+                        case "--content-index":
+                            options.ContentIndexPath = args[++i];
+                            break;
                         case "--ext-include":
                             options.IncludeExtensions = args[++i].Split(',');
                             break;
@@ -151,6 +296,16 @@ namespace SwiftSeek
             {
                 return null;
             }
+        }
+
+        static ContentSearchMode ParseContentMode(string mode)
+        {
+            return mode?.ToLowerInvariant() switch
+            {
+                "index" => ContentSearchMode.Index,
+                "scan" => ContentSearchMode.Scan,
+                _ => ContentSearchMode.Auto
+            };
         }
     }
 }
