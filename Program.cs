@@ -1,8 +1,8 @@
 using System;
 using System.Diagnostics;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using System.IO;
 
 namespace SwiftSeek
 {
@@ -16,45 +16,17 @@ namespace SwiftSeek
                 return;
             }
 
-            string searchTerm = args[0];
-            string rootDirectory = ".";
-            bool searchContent = false;
-            bool useRegex = false;
-            bool caseSensitive = false;
-            string[] includeExtensions = Array.Empty<string>();
-            string[] excludeExtensions = Array.Empty<string>();
-            long minSize = 0;
-            long maxSize = 25 * 1024 * 1024; // Default max size: 25 MB
-
-            for (int i = 1; i < args.Length; i++)
+            var options = ParseArguments(args);
+            if (options == null)
             {
-                switch (args[i])
-                {
-                    case "--root":
-                        rootDirectory = args[++i];
-                        break;
-                    case "--content":
-                        searchContent = true;
-                        break;
-                    case "--regex":
-                        useRegex = true;
-                        break;
-                    case "--case-sensitive":
-                        caseSensitive = true;
-                        break;
-                    case "--ext-include":
-                        includeExtensions = args[++i].Split(',');
-                        break;
-                    case "--ext-exclude":
-                        excludeExtensions = args[++i].Split(',');
-                        break;
-                    case "--min-size":
-                        minSize = long.Parse(args[++i]);
-                        break;
-                    case "--max-size":
-                        maxSize = long.Parse(args[++i]);
-                        break;
-                }
+                Console.WriteLine("Invalid arguments. Use --help for usage information.");
+                return;
+            }
+
+            if (!Directory.Exists(options.RootDirectory))
+            {
+                Console.WriteLine($"Error: The specified root directory '{options.RootDirectory}' does not exist.");
+                return;
             }
 
             var cts = new CancellationTokenSource();
@@ -68,18 +40,7 @@ namespace SwiftSeek
 
             try
             {
-                var searcher = new Searcher(
-                    searchTerm,
-                    rootDirectory,
-                    searchContent,
-                    useRegex,
-                    caseSensitive,
-                    includeExtensions,
-                    excludeExtensions,
-                    minSize,
-                    maxSize
-                );
-
+                var searcher = new Searcher(options);
                 await searcher.SearchAsync(cts.Token);
             }
             catch (OperationCanceledException)
@@ -105,6 +66,57 @@ namespace SwiftSeek
             Console.WriteLine("  --ext-exclude <exts>      Comma-separated list of extensions to exclude");
             Console.WriteLine("  --min-size <bytes>        Minimum file size in bytes");
             Console.WriteLine("  --max-size <bytes>        Maximum file size in bytes (default: 25 MB)");
+            Console.WriteLine("  --verbose                 Enable verbose output");
+        }
+
+        static SearchOptions ParseArguments(string[] args)
+        {
+            var options = new SearchOptions();
+
+            try
+            {
+                options.SearchTerm = args[0];
+
+                for (int i = 1; i < args.Length; i++)
+                {
+                    switch (args[i])
+                    {
+                        case "--root":
+                            options.RootDirectory = args[++i];
+                            break;
+                        case "--content":
+                            options.SearchContent = true;
+                            break;
+                        case "--regex":
+                            options.UseRegex = true;
+                            break;
+                        case "--case-sensitive":
+                            options.CaseSensitive = true;
+                            break;
+                        case "--ext-include":
+                            options.IncludeExtensions = args[++i].Split(',');
+                            break;
+                        case "--ext-exclude":
+                            options.ExcludeExtensions = args[++i].Split(',');
+                            break;
+                        case "--min-size":
+                            options.MinSize = long.Parse(args[++i]);
+                            break;
+                        case "--max-size":
+                            options.MaxSize = long.Parse(args[++i]);
+                            break;
+                        case "--verbose":
+                            options.Verbose = true;
+                            break;
+                    }
+                }
+
+                return options;
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 }

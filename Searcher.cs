@@ -10,50 +10,22 @@ namespace SwiftSeek
 {
     class Searcher
     {
-        private readonly string _searchTerm;
-        private readonly string _rootDirectory;
-        private readonly bool _searchContent;
-        private readonly bool _useRegex;
-        private readonly bool _caseSensitive;
-        private readonly HashSet<string> _includeExtensions;
-        private readonly HashSet<string> _excludeExtensions;
-        private readonly long _minSize;
-        private readonly long _maxSize;
+        private readonly SearchOptions _options;
+        private readonly SearchStatistics _statistics = new SearchStatistics();
 
-        private int _filesScanned;
-        private int _matchesFound;
-        private int _filesSkipped;
-
-        public Searcher(
-            string searchTerm,
-            string rootDirectory,
-            bool searchContent,
-            bool useRegex,
-            bool caseSensitive,
-            string[] includeExtensions,
-            string[] excludeExtensions,
-            long minSize,
-            long maxSize)
+        public Searcher(SearchOptions options)
         {
-            _searchTerm = searchTerm;
-            _rootDirectory = rootDirectory;
-            _searchContent = searchContent;
-            _useRegex = useRegex;
-            _caseSensitive = caseSensitive;
-            _includeExtensions = new HashSet<string>(includeExtensions, StringComparer.OrdinalIgnoreCase);
-            _excludeExtensions = new HashSet<string>(excludeExtensions, StringComparer.OrdinalIgnoreCase);
-            _minSize = minSize;
-            _maxSize = maxSize;
+            _options = options;
         }
 
         public async Task SearchAsync(CancellationToken cancellationToken)
         {
-            await Task.Run(() => SearchDirectory(_rootDirectory, cancellationToken), cancellationToken);
+            await Task.Run(() => SearchDirectory(_options.RootDirectory, cancellationToken), cancellationToken);
 
             Console.WriteLine("\nSearch complete.");
-            Console.WriteLine($"Files scanned: {_filesScanned}");
-            Console.WriteLine($"Matches found: {_matchesFound}");
-            Console.WriteLine($"Files skipped: {_filesSkipped}");
+            Console.WriteLine($"Files scanned: {_statistics.FilesScanned}");
+            Console.WriteLine($"Matches found: {_statistics.MatchesFound}");
+            Console.WriteLine($"Files skipped: {_statistics.FilesSkipped}");
         }
 
         private void SearchDirectory(string directory, CancellationToken cancellationToken)
@@ -72,9 +44,15 @@ namespace SwiftSeek
                     SearchDirectory(subDirectory, cancellationToken);
                 }
             }
+            catch (DirectoryNotFoundException)
+            {
+                Console.WriteLine($"Warning: Directory not found: {directory}. Skipping.");
+                _statistics.FilesSkipped++;
+            }
             catch (UnauthorizedAccessException)
             {
-                _filesSkipped++;
+                Console.WriteLine($"Warning: Access denied to directory: {directory}. Skipping.");
+                _statistics.FilesSkipped++;
             }
         }
 
@@ -84,63 +62,61 @@ namespace SwiftSeek
             {
                 var fileInfo = new FileInfo(filePath);
 
-                if (fileInfo.Length > _maxSize || fileInfo.Length < _minSize)
+                if (fileInfo.Length > _options.MaxSize || fileInfo.Length < _options.MinSize)
                 {
-                    _filesSkipped++;
+                    _statistics.FilesSkipped++;
                     return;
                 }
 
-                if (_excludeExtensions.Contains(fileInfo.Extension))
+                if (Array.Exists(_options.ExcludeExtensions, ext => ext.Equals(fileInfo.Extension, StringComparison.OrdinalIgnoreCase)))
                 {
-                    _filesSkipped++;
+                    _statistics.FilesSkipped++;
                     return;
                 }
 
-                if (_includeExtensions.Count > 0 && !_includeExtensions.Contains(fileInfo.Extension))
+                if (_options.IncludeExtensions.Length > 0 && !Array.Exists(_options.IncludeExtensions, ext => ext.Equals(fileInfo.Extension, StringComparison.OrdinalIgnoreCase)))
                 {
-                    _filesSkipped++;
+                    _statistics.FilesSkipped++;
                     return;
                 }
 
                 if (FileUtils.IsBinary(filePath))
                 {
-                    _filesSkipped++;
+                    _statistics.FilesSkipped++;
                     return;
                 }
 
-                _filesScanned++;
+                _statistics.FilesScanned++;
 
-                if (_searchContent)
+                if (_options.SearchContent)
                 {
                     if (SearchFileContent(filePath, cancellationToken))
                     {
-                        Console.WriteLine(filePath);
-                        _matchesFound++;
+                        ReportMatch(filePath);
                     }
                 }
                 else if (SearchFileName(filePath))
                 {
-                    Console.WriteLine(filePath);
-                    _matchesFound++;
+                    ReportMatch(filePath);
                 }
             }
             catch (Exception)
             {
-                _filesSkipped++;
+                _statistics.FilesSkipped++;
             }
         }
 
         private bool SearchFileName(string filePath)
         {
-            var comparison = _caseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+            var comparison = _options.CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
 
-            if (_useRegex)
+            if (_options.UseRegex)
             {
-                var regex = new Regex(_searchTerm, _caseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase);
+                var regex = new Regex(_options.SearchTerm, _options.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase);
                 return regex.IsMatch(Path.GetFileName(filePath));
             }
 
-            return Path.GetFileName(filePath).IndexOf(_searchTerm, comparison) >= 0;
+            return Path.GetFileName(filePath).IndexOf(_options.SearchTerm, comparison) >= 0;
         }
 
         private bool SearchFileContent(string filePath, CancellationToken cancellationToken)
@@ -153,24 +129,35 @@ namespace SwiftSeek
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    if (_useRegex)
+                    if (_options.UseRegex)
                     {
-                        var regex = new Regex(_searchTerm, _caseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase);
+                        var regex = new Regex(_options.SearchTerm, _options.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase);
                         if (regex.IsMatch(line)) return true;
                     }
                     else
                     {
-                        var comparison = _caseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
-                        if (line.IndexOf(_searchTerm, comparison) >= 0) return true;
+                        var comparison = _options.CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+                        if (line.IndexOf(_options.SearchTerm, comparison) >= 0) return true;
                     }
                 }
             }
             catch
             {
-                _filesSkipped++;
+                _statistics.FilesSkipped++;
             }
 
             return false;
+        }
+
+        private void ReportMatch(string filePath)
+        {
+            _statistics.MatchesFound++;
+            Console.WriteLine(filePath);
+
+            if (_options.Verbose)
+            {
+                Console.WriteLine($"[VERBOSE] Match found in: {filePath}");
+            }
         }
     }
 }
