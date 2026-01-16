@@ -39,3 +39,29 @@ swiftseek "error code 503" --root "C:\Projects" --content --regex --ext-include 
 - Binary files are skipped using a simple heuristic (null byte detection).
 - Access-denied files are skipped.
 - Regular expressions must be valid according to .NET's `System.Text.RegularExpressions`.
+
+## Index Commands
+
+SwiftSeek now supports persistent indexing using SQLite. The following commands are available:
+
+### Build Index
+Build an index for a given root directory:
+```sh
+swiftseek index build --root "C:\"
+```
+
+### Show Index Status
+Display the current index status:
+```sh
+swiftseek index status
+```
+
+### Rebuild Index
+Rebuild the index from scratch:
+```sh
+swiftseek index rebuild --root "C:\"
+```
+
+### Notes
+- The index stores file metadata such as path, name, extension, size, creation time, and modification time.
+- Filename and directory searches use the index, while content searches remain on-demand.

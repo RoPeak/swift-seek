@@ -16,6 +16,38 @@ namespace SwiftSeek
                 return;
             }
 
+            if (args[0] == "index")
+            {
+                var indexer = new Indexer("swiftseek.db");
+                var cts = new CancellationTokenSource();
+                Console.CancelKeyPress += (sender, eventArgs) =>
+                {
+                    eventArgs.Cancel = true;
+                    cts.Cancel();
+                };
+
+                if (args.Length > 1 && args[1] == "build")
+                {
+                    string rootDirectory = args.Length > 3 && args[2] == "--root" ? args[3] : ".";
+                    await indexer.BuildIndexAsync(rootDirectory, cts.Token);
+                }
+                else if (args.Length > 1 && args[1] == "status")
+                {
+                    indexer.ShowIndexStatus();
+                }
+                else if (args.Length > 1 && args[1] == "rebuild")
+                {
+                    string rootDirectory = args.Length > 3 && args[2] == "--root" ? args[3] : ".";
+                    await indexer.RebuildIndexAsync(rootDirectory, cts.Token);
+                }
+                else
+                {
+                    Console.WriteLine("Invalid index command. Use 'build', 'status', or 'rebuild'.");
+                }
+
+                return;
+            }
+
             var options = ParseArguments(args);
             if (options == null)
             {
@@ -29,19 +61,21 @@ namespace SwiftSeek
                 return;
             }
 
-            var cts = new CancellationTokenSource();
+            var searchCts = new CancellationTokenSource();
             Console.CancelKeyPress += (sender, eventArgs) =>
             {
                 eventArgs.Cancel = true;
-                cts.Cancel();
+                searchCts.Cancel();
             };
+
+            var cancellationTokenSource = searchCts.Token;
 
             var stopwatch = Stopwatch.StartNew();
 
             try
             {
                 var searcher = new Searcher(options);
-                await searcher.SearchAsync(cts.Token);
+                await searcher.SearchAsync(cancellationTokenSource);
             }
             catch (OperationCanceledException)
             {

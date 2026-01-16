@@ -20,6 +20,20 @@ namespace SwiftSeek
 
         public async Task SearchAsync(CancellationToken cancellationToken)
         {
+            Console.WriteLine($"Starting search in directory: {_options.RootDirectory}");
+
+            if (_options.Verbose)
+            {
+                Console.WriteLine("[VERBOSE] Search options:");
+                Console.WriteLine($"  Search Term: {_options.SearchTerm}");
+                Console.WriteLine($"  Case Sensitive: {_options.CaseSensitive}");
+                Console.WriteLine($"  Use Regex: {_options.UseRegex}");
+                Console.WriteLine($"  Include Extensions: {string.Join(", ", _options.IncludeExtensions)}");
+                Console.WriteLine($"  Exclude Extensions: {string.Join(", ", _options.ExcludeExtensions)}");
+                Console.WriteLine($"  Min Size: {_options.MinSize} bytes");
+                Console.WriteLine($"  Max Size: {_options.MaxSize} bytes");
+            }
+
             await Task.Run(() => SearchDirectory(_options.RootDirectory, cancellationToken), cancellationToken);
 
             Console.WriteLine("\nSearch complete.");
@@ -65,28 +79,49 @@ namespace SwiftSeek
                 if (fileInfo.Length > _options.MaxSize || fileInfo.Length < _options.MinSize)
                 {
                     _statistics.FilesSkipped++;
+                    if (_options.Verbose)
+                    {
+                        Console.WriteLine($"[VERBOSE] Skipping file: {filePath} (Reason: Size filter)"); 
+                    }
                     return;
                 }
 
                 if (Array.Exists(_options.ExcludeExtensions, ext => ext.Equals(fileInfo.Extension, StringComparison.OrdinalIgnoreCase)))
                 {
                     _statistics.FilesSkipped++;
+                    if (_options.Verbose)
+                    {
+                        Console.WriteLine($"[VERBOSE] Skipping file: {filePath} (Reason: Excluded extension)"); 
+                    }
                     return;
                 }
 
                 if (_options.IncludeExtensions.Length > 0 && !Array.Exists(_options.IncludeExtensions, ext => ext.Equals(fileInfo.Extension, StringComparison.OrdinalIgnoreCase)))
                 {
                     _statistics.FilesSkipped++;
+                    if (_options.Verbose)
+                    {
+                        Console.WriteLine($"[VERBOSE] Skipping file: {filePath} (Reason: Included extensions filter)"); 
+                    }
                     return;
                 }
 
                 if (FileUtils.IsBinary(filePath))
                 {
                     _statistics.FilesSkipped++;
+                    if (_options.Verbose)
+                    {
+                        Console.WriteLine($"[VERBOSE] Skipping file: {filePath} (Reason: Binary file)"); 
+                    }
                     return;
                 }
 
                 _statistics.FilesScanned++;
+
+                if (_options.Verbose)
+                {
+                    Console.WriteLine($"[VERBOSE] Scanning file: {filePath}");
+                }
 
                 if (_options.SearchContent)
                 {
