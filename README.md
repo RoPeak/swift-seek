@@ -195,6 +195,28 @@ SwiftSeek is designed for quick set-up:
 - NuGet dependencies are resolved during `dotnet restore`.
 - Index files are created automatically on first use.
 
+## Desktop Application
+
+SwiftSeek includes a WinUI 3 desktop app in `SwiftSeek.App`. The UI is a thin layer that delegates all search behaviour to the existing core engine, including scan and index modes. Results stream into the interface as they are found, and searches can be cancelled at any time.
+
+### Build and Run (Desktop)
+
+From the repository root:
+
+```sh
+dotnet restore
+dotnet build
+dotnet run --project SwiftSeek.App
+```
+
+### Desktop Features
+
+- Search box with streaming results
+- Filters panel for content, regex, case, phrase, fuzzy, and size limits
+- Results table with snippets where available
+- Preview panel for quick file inspection
+- Progress and cancellation controls
+
 ## Future Work
 
 - Additional file type support.

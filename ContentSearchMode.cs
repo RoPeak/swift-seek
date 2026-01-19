@@ -1,6 +1,6 @@
 namespace SwiftSeek
 {
-    enum ContentSearchMode
+    public enum ContentSearchMode
     {
         Auto,
         Index,

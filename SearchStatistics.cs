@@ -1,6 +1,6 @@
 namespace SwiftSeek
 {
-    class SearchStatistics
+    public class SearchStatistics
     {
         public int FilesScanned { get; set; } = 0;
         public int MatchesFound { get; set; } = 0;

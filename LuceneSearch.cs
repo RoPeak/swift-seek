@@ -43,9 +43,14 @@ namespace SwiftSeek.Lucene
 
         public IReadOnlyList<ContentSearchResult> Search(ContentSearchQuery query)
         {
+            return SearchStreaming(query).ToList();
+        }
+
+        public IEnumerable<ContentSearchResult> SearchStreaming(ContentSearchQuery query)
+        {
             if (!ContentIndexPaths.IndexExists(_indexPath))
             {
-                return Array.Empty<ContentSearchResult>();
+                yield break;
             }
 
             using var directory = FSDirectory.Open(_indexPath);
@@ -57,7 +62,6 @@ namespace SwiftSeek.Lucene
             var parsedQuery = BuildQuery(query, field, analyzer);
             var hits = searcher.Search(parsedQuery, query.MaxResults);
 
-            var results = new List<ContentSearchResult>();
             foreach (var hit in hits.ScoreDocs)
             {
                 var doc = searcher.Doc(hit.Doc);
@@ -69,15 +73,13 @@ namespace SwiftSeek.Lucene
 
                 var content = doc.Get("ContentStored");
                 var snippet = SnippetBuilder.Build(content, query.QueryText, query.CaseSensitive, query.ExactPhrase);
-                results.Add(new ContentSearchResult
+                yield return new ContentSearchResult
                 {
                     Path = path,
                     Snippet = snippet,
                     Score = hit.Score
-                });
+                };
             }
-
-            return results;
         }
 
         private static Analyzer CreateSearchAnalyzer(bool caseSensitive)

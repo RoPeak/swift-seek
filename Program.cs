@@ -81,45 +81,9 @@ namespace SwiftSeek
 
             try
             {
-                var contentIndexPath = options.SearchContent
-                    ? ContentIndexPaths.ResolveIndexPath(options.RootDirectory, options.ContentIndexPath)
-                    : null;
-
-                if (options.SearchContent && options.ContentSearchMode != ContentSearchMode.Scan)
-                {
-                    if (options.UseRegex)
-                    {
-                        if (options.ContentSearchMode == ContentSearchMode.Index)
-                        {
-                            Console.WriteLine("Regex search is not available when using the content index.");
-                            return;
-                        }
-
-                        Console.WriteLine("Regex search requested. Falling back to scan mode.");
-                        options.ContentSearchMode = ContentSearchMode.Scan;
-                    }
-                    else if (!ContentIndexPaths.IndexExists(contentIndexPath))
-                    {
-                        if (options.ContentSearchMode == ContentSearchMode.Index)
-                        {
-                            Console.WriteLine($"No content index found at '{contentIndexPath}'.");
-                            return;
-                        }
-
-                        Console.WriteLine("No content index found. Falling back to scan mode.");
-                        options.ContentSearchMode = ContentSearchMode.Scan;
-                    }
-                }
-
-                if (options.SearchContent && options.ContentSearchMode != ContentSearchMode.Scan)
-                {
-                    await RunContentSearchAsync(options, contentIndexPath);
-                }
-                else
-                {
-                    var searcher = new Searcher(options);
-                    await searcher.SearchAsync(cancellationTokenSource);
-                }
+                var reporter = new ConsoleSearchReporter();
+                var coordinator = new SearchCoordinator();
+                await coordinator.RunAsync(options, reporter, cancellationTokenSource);
             }
             catch (OperationCanceledException)
             {
@@ -179,39 +143,6 @@ namespace SwiftSeek
             Console.WriteLine($"Files indexed: {stats.FilesIndexed}");
             Console.WriteLine($"Files unchanged: {stats.FilesUnchanged}");
             Console.WriteLine($"Files skipped: {stats.FilesSkipped}");
-        }
-
-        static Task RunContentSearchAsync(SearchOptions options, string indexPath)
-        {
-            Console.WriteLine($"Searching content index: {indexPath}");
-
-            var searcher = new ContentSearcher(indexPath);
-            var query = new ContentSearchQuery
-            {
-                QueryText = options.SearchTerm,
-                CaseSensitive = options.CaseSensitive,
-                FuzzySearch = options.FuzzySearch,
-                ExactPhrase = options.ExactPhrase,
-                MaxResults = 20
-            };
-
-            var results = searcher.Search(query);
-            foreach (var result in results)
-            {
-                Console.WriteLine(result.Path);
-                if (!string.IsNullOrWhiteSpace(result.Snippet))
-                {
-                    Console.WriteLine(result.Snippet);
-                }
-
-                if (options.Verbose)
-                {
-                    Console.WriteLine($"[VERBOSE] Score: {result.Score:F2}");
-                }
-            }
-
-            Console.WriteLine($"Matches found: {results.Count}");
-            return Task.CompletedTask;
         }
 
         static void PrintUsage()

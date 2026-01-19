@@ -1,6 +1,6 @@
 namespace SwiftSeek
 {
-    class SearchOptions
+    public class SearchOptions
     {
         public string SearchTerm { get; set; }
         public string RootDirectory { get; set; } = ".";

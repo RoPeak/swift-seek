@@ -12,34 +12,24 @@ namespace SwiftSeek
     {
         private readonly SearchOptions _options;
         private readonly SearchStatistics _statistics = new SearchStatistics();
+        private readonly ISearchReporter _reporter;
+        private int _progressCounter;
+        private const int ProgressInterval = 100;
 
-        public Searcher(SearchOptions options)
+        public Searcher(SearchOptions options, ISearchReporter reporter = null)
         {
             _options = options;
+            _reporter = reporter ?? new ConsoleSearchReporter();
         }
 
-        public async Task SearchAsync(CancellationToken cancellationToken)
+        public async Task<SearchStatistics> SearchAsync(CancellationToken cancellationToken)
         {
-            Console.WriteLine($"Starting search in directory: {_options.RootDirectory}");
-
-            if (_options.Verbose)
-            {
-                Console.WriteLine("[VERBOSE] Search options:");
-                Console.WriteLine($"  Search Term: {_options.SearchTerm}");
-                Console.WriteLine($"  Case Sensitive: {_options.CaseSensitive}");
-                Console.WriteLine($"  Use Regex: {_options.UseRegex}");
-                Console.WriteLine($"  Include Extensions: {string.Join(", ", _options.IncludeExtensions)}");
-                Console.WriteLine($"  Exclude Extensions: {string.Join(", ", _options.ExcludeExtensions)}");
-                Console.WriteLine($"  Min Size: {_options.MinSize} bytes");
-                Console.WriteLine($"  Max Size: {_options.MaxSize} bytes");
-            }
+            _reporter.OnStart(_options);
 
             await Task.Run(() => SearchDirectory(_options.RootDirectory, cancellationToken), cancellationToken);
 
-            Console.WriteLine("\nSearch complete.");
-            Console.WriteLine($"Files scanned: {_statistics.FilesScanned}");
-            Console.WriteLine($"Matches found: {_statistics.MatchesFound}");
-            Console.WriteLine($"Files skipped: {_statistics.FilesSkipped}");
+            _reporter.OnComplete(_statistics);
+            return _statistics;
         }
 
         private void SearchDirectory(string directory, CancellationToken cancellationToken)
@@ -60,12 +50,12 @@ namespace SwiftSeek
             }
             catch (DirectoryNotFoundException)
             {
-                Console.WriteLine($"Warning: Directory not found: {directory}. Skipping.");
+                _reporter.OnWarning($"Warning: Directory not found: {directory}. Skipping.");
                 _statistics.FilesSkipped++;
             }
             catch (UnauthorizedAccessException)
             {
-                Console.WriteLine($"Warning: Access denied to directory: {directory}. Skipping.");
+                _reporter.OnWarning($"Warning: Access denied to directory: {directory}. Skipping.");
                 _statistics.FilesSkipped++;
             }
         }
@@ -81,7 +71,7 @@ namespace SwiftSeek
                     _statistics.FilesSkipped++;
                     if (_options.Verbose)
                     {
-                        Console.WriteLine($"[VERBOSE] Skipping file: {filePath} (Reason: Size filter)"); 
+                        _reporter.OnVerbose($"[VERBOSE] Skipping file: {filePath} (Reason: Size filter)");
                     }
                     return;
                 }
@@ -91,7 +81,7 @@ namespace SwiftSeek
                     _statistics.FilesSkipped++;
                     if (_options.Verbose)
                     {
-                        Console.WriteLine($"[VERBOSE] Skipping file: {filePath} (Reason: Excluded extension)"); 
+                        _reporter.OnVerbose($"[VERBOSE] Skipping file: {filePath} (Reason: Excluded extension)");
                     }
                     return;
                 }
@@ -101,7 +91,7 @@ namespace SwiftSeek
                     _statistics.FilesSkipped++;
                     if (_options.Verbose)
                     {
-                        Console.WriteLine($"[VERBOSE] Skipping file: {filePath} (Reason: Included extensions filter)"); 
+                        _reporter.OnVerbose($"[VERBOSE] Skipping file: {filePath} (Reason: Included extensions filter)");
                     }
                     return;
                 }
@@ -111,16 +101,17 @@ namespace SwiftSeek
                     _statistics.FilesSkipped++;
                     if (_options.Verbose)
                     {
-                        Console.WriteLine($"[VERBOSE] Skipping file: {filePath} (Reason: Binary file)"); 
+                        _reporter.OnVerbose($"[VERBOSE] Skipping file: {filePath} (Reason: Binary file)");
                     }
                     return;
                 }
 
                 _statistics.FilesScanned++;
+                ReportProgressIfNeeded();
 
                 if (_options.Verbose)
                 {
-                    Console.WriteLine($"[VERBOSE] Scanning file: {filePath}");
+                    _reporter.OnVerbose($"[VERBOSE] Scanning file: {filePath}");
                 }
 
                 if (_options.SearchContent)
@@ -187,11 +178,26 @@ namespace SwiftSeek
         private void ReportMatch(string filePath)
         {
             _statistics.MatchesFound++;
-            Console.WriteLine(filePath);
+            _reporter.OnMatch(new SearchResult
+            {
+                Path = filePath,
+                Snippet = string.Empty,
+                Source = SearchResultSource.Scan
+            });
 
             if (_options.Verbose)
             {
-                Console.WriteLine($"[VERBOSE] Match found in: {filePath}");
+                _reporter.OnVerbose($"[VERBOSE] Match found in: {filePath}");
+            }
+        }
+
+        private void ReportProgressIfNeeded()
+        {
+            _progressCounter++;
+            if (_progressCounter >= ProgressInterval)
+            {
+                _progressCounter = 0;
+                _reporter.OnProgress(_statistics);
             }
         }
     }
