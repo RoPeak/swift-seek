@@ -1,25 +1,24 @@
-# Build artifacts
+## Build output
 bin/
 obj/
+.build/
 
-# User-specific files
+## Visual Studio
+.vs/
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
-
-# Logs
+*.cache
 *.log
-
-# Visual Studio Code settings
-.vscode/
-
-# Other
-*.swp
 *.tmp
-*.bak
-*.ncb
-*.opendb
-*.VC.db
-swiftseek.db
+
+## Rider
+.idea/
+
+## SwiftSeek runtime data
 .swiftseek/
+swiftseek.db
+
+## Test results
+TestResults/
