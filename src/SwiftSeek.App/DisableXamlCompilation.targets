@@ -1,0 +1,11 @@
+<Project>
+  <!-- Disable the XAML compilation target that's failing -->
+  <Target Name="CompileXamlMarkupCompilation" />
+  <Target Name="_CompileXamlMarkupCompilation" />
+  <Target Name="GenerateXamlMarkupCompilationCodeBehind" />
+
+  <ItemGroup>
+    <!-- Make sure we skip the problematic targets from Windows App SDK -->
+    <Import Remove="@(Import)" Condition="'%(Import.Project)' Contains 'Microsoft.UI.Xaml.Markup.Compiler'" />
+  </ItemGroup>
+</Project>

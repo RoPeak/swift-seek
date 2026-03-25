@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <CompileXamlMarkupCompilation>false</CompileXamlMarkupCompilation>
+  </PropertyGroup>
+
+  <Target Name="CompileXamlMarkupCompilation" />
+</Project>

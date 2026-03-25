@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace SwiftSeek
 {
-    class Searcher
+    public class Searcher
     {
         private readonly SearchOptions _options;
         private readonly SearchStatistics _statistics = new SearchStatistics();
