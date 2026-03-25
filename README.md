@@ -4,6 +4,10 @@
 
 SwiftSeek is a lightweight Windows search tool with a shared core library and a WinUI 3 desktop app. The core library handles metadata indexing, content indexing, and scanning; the UI is a thin shell that streams results and supports cancellation.
 
+## Preview
+
+![Preview](docs/images/preview.png)
+
 ## Repository Layout
 
 - `src/SwiftSeek.Core` - core search library (SQLite metadata and Lucene.NET content indexing).
